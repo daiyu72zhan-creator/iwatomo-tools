@@ -445,13 +445,10 @@ async function sendLineNotification(){
   ].join('\n');
 
   try{
-    const res=await fetch('https://api.line.me/v2/bot/message/broadcast',{
+    const res=await fetch('/api/line-notify',{
       method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer SYsjog/2IQsmyzhvu/iRR+m13mH+t05Guh6X0Od9ze0UhXQu29LCil5qSBJjYJ3p1C0WKzJEEKj0sb4DPDT8k8YvZJxspjSZaRR4qfnksvl+ZJxtHl/GciOyR12JrhtxJDuuFP/RFeCIEKhEctjB9AdB04t89/1O/w1cDnyilFU=',
-      },
-      body:JSON.stringify({messages:[{type:'text',text:messageText}]})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:messageText})
     });
     if(res.ok){
       status.textContent='✅ LINE への通知を送信しました！';
