@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>事件追加ツール</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f7f5f2;color:#2d1f14;padding:24px;max-width:900px;margin:0 auto}
+h1{font-size:20px;font-weight:700;margin-bottom:4px}
+.subtitle{font-size:13px;color:#8c7b6b;margin-bottom:20px}
+.card{background:#fff;border-radius:16px;border:1px solid #ece8e2;padding:20px;margin-bottom:16px}
+.card h2{font-size:13px;font-weight:700;color:#6b4f3a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+.event-block{background:#fff;border-radius:16px;border:2px solid #ece8e2;padding:20px;margin-bottom:14px;position:relative}
+.event-block.has-data{border-color:#c8b8a8}
+.block-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f0ede9}
+.block-title{font-size:14px;font-weight:700;color:#6b4f3a}
+.block-summary{font-size:11px;color:#8c7b6b;margin-left:8px}
+.del-btn{background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.del-btn:hover{background:#fca5a5}
+.field{margin-bottom:12px}
+label{display:block;font-size:12px;font-weight:600;color:#6b4f3a;margin-bottom:4px}
+input,select,textarea{width:100%;padding:8px 11px;border:1px solid #ece8e2;border-radius:9px;font-size:13px;background:#f7f5f2;color:#2d1f14;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:#6b4f3a;background:#fff}
+input[readonly]{background:#eef7ee;color:#2d6b2d;border-color:#a8d5a8}
+textarea{resize:vertical;min-height:60px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.gym-wrap{position:relative}
+.gym-dd{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ece8e2;border-radius:10px;max-height:180px;overflow-y:auto;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,.08);margin-top:3px;display:none}
+.gym-item{padding:9px 13px;font-size:13px;cursor:pointer;border-bottom:1px solid #f0ede9}
+.gym-item:last-child{border-bottom:none}
+.gym-item:hover{background:#f7f5f2}
+.gym-id-small{font-size:10px;color:#b0a899;font-family:monospace;margin-top:1px}
+.gym-ok{background:#f0f9f0;border:1px solid #a8d5a8;border-radius:8px;padding:5px 10px;font-size:11px;color:#2d6b2d;margin-top:4px;display:none}
+.gym-ok.show{display:block}
+.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.type-btn{padding:7px 4px;border:1px solid #ece8e2;border-radius:8px;font-size:10px;font-weight:600;cursor:pointer;background:#f7f5f2;color:#6b4f3a;text-align:center;line-height:1.4}
+.type-btn.active{background:#6b4f3a;color:#fff;border-color:#6b4f3a}
+.auto-hint{font-size:11px;color:#16a34a;margin-top:3px;display:none}
+.toggle-row{display:flex;gap:12px;flex-wrap:wrap}
+.toggle-item{display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer}
+.toggle-item input[type=checkbox]{width:15px;height:15px;cursor:pointer}
+.img-zone{border:2px dashed #d0c8be;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:#faf8f6;position:relative;min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.img-zone:hover,.img-zone.drag{border-color:#6b4f3a;background:#f5f0eb}
+.img-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.img-zone .icon{font-size:24px}
+.img-zone .label{font-size:12px;color:#8c7b6b}
+.img-zone .sublabel{font-size:11px;color:#b0a899}
+.img-preview{width:100%;height:120px;object-fit:cover;border-radius:10px;margin-top:8px;display:none}
+.img-uploading{font-size:12px;color:#6b4f3a;margin-top:6px;display:none}
+.img-url-result{font-size:11px;color:#16a34a;margin-top:4px;word-break:break-all;display:none}
+.add-btn{width:100%;padding:12px;background:#f0ede9;color:#6b4f3a;border:2px dashed #c8b8a8;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px}
+.add-btn:hover{background:#e8e0d8}
+.gen-btn{width:100%;padding:14px;background:#6b4f3a;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px}
+.gen-btn:hover{background:#5a3f2c}
+.line-btn{width:100%;padding:14px;background:#06C755;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;display:none;margin-top:10px}
+.line-btn:hover{background:#05a847}
+.line-btn:disabled{background:#a8d5b5;cursor:not-allowed}
+.required{color:#e53935}
+.hint{font-size:11px;color:#b0a899;margin-top:3px}
+.output-wrap{display:none;margin-top:16px}
+.output-wrap.show{display:block}
+.sql-box{background:#1e1e1e;color:#d4d4d4;border-radius:12px;padding:16px;font-size:12px;font-family:'Courier New',monospace;white-space:pre-wrap;word-break:break-all;line-height:1.6;max-height:400px;overflow-y:auto}
+.copy-btn{background:#2d1f14;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;margin-top:10px}
+.copy-btn:hover{background:#111}
+.copy-btn.copied{background:#16a34a}
+.count-badge{background:#6b4f3a;color:#fff;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px}
+.line-status{font-size:13px;margin-top:10px;padding:10px 14px;border-radius:10px;display:none}
+.line-status.success{background:#f0fdf4;color:#16a34a;border:1px solid #a8d5a8;display:block}
+.line-status.error{background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;display:block}
+</style>
+</head>
+<body>
+
+<h1>🗓 事件追加ツール</h1>
+<p class="subtitle">複数の事件を一度に追加できます。画像はドラッグ＆ドロップで自動アップロード。</p>
+
+<div class="card">
+  <h2>事件リスト <span class="count-badge" id="countBadge">1</span></h2>
+  <div id="eventList"></div>
+  <button class="add-btn" onclick="addEvent()">＋ 事件を追加</button>
+</div>
+
+<button class="gen-btn" onclick="generateAll()">まとめてSQLを生成する</button>
+
+<div class="output-wrap" id="outputWrap">
+  <div class="card">
+    <h2>生成されたSQL</h2>
+    <p class="hint" style="margin-bottom:10px">Supabase SQL Editorに貼り付けて実行してください</p>
+    <div class="sql-box" id="sqlOutput"></div>
+    <button class="copy-btn" id="copyBtn" onclick="copySQL()">📋 コピー</button>
+  </div>
+</div>
+
+<button class="line-btn" id="lineBtn" onclick="sendLineNotification()">📣 LINE に通知を送る</button>
+<div class="line-status" id="lineStatus"></div>
+
+<script>
+const SUPABASE_URL='https://rwxgomnvaydpwwgdzobc.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3eGdvbW52YXlkcHd3Z2R6b2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Mzc3NDIsImV4cCI6MjA4OTQxMzc0Mn0.p_b6mYPSK58v8otss2Bx_c1UFIGhxMloqSzwQcWiNUQ';
+
+const {createClient}=supabase;
+const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+let gyms=[];
+let eventCount=0;
+const eventData={};
+let generatedEvents=[];
+
+const AUTO_TITLES={
+  route_partial:{ja:'ルートセット（一部）',en:'Route Setting (partial)',zh:'换线（部分）'},
+  route_all:    {ja:'ルートセット（全部）',en:'Route Setting (full)',   zh:'换线（全部）'},
+  closure:      {ja:'臨時休業',            en:'Temporary Closure',      zh:'临时休业'},
+  notice:       {ja:'お知らせ',            en:'Notice',                 zh:'通知'},
+  hours_change: {ja:'営業時間変更',         en:'Hours Change',           zh:'营业时间更改'},
+};
+const AUTO_TYPES=new Set(['route_partial','route_all','closure','notice','hours_change']);
+const TYPE_EMOJI={route_partial:'🟡',route_all:'🔴',competition:'🏆',event:'🎉',closure:'🔒',notice:'📢',hours_change:'🕐'};
+
+async function loadGyms(){
+  const{data}=await sb.from('gyms').select('id,name').eq('is_active',true).order('name');
+  gyms=data||[];
+}
+loadGyms();
+
+function uuidv4(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0;
+    return(c==='x'?r:(r&0x3|0x8)).toString(16);
+  });
+}
+function escSQL(val){
+  if(val===null||val===undefined||val==='')return'NULL';
+  return`'${String(val).replace(/'/g,"''")}'`;
+}
+
+function addEvent(){
+  eventCount++;
+  const id='ev'+eventCount;
+  eventData[id]={gymId:null,gymName:null,type:null,posterUrl:''};
+
+  const div=document.createElement('div');
+  div.className='event-block';
+  div.id='block_'+id;
+  div.innerHTML=`
+  <div class="block-header">
+    <div><span class="block-title">事件 #${eventCount}</span><span class="block-summary" id="summary_${id}"></span></div>
+    <button class="del-btn" onclick="removeEvent('${id}')">削除</button>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <label>ジム名 <span class="required">*</span></label>
+      <div class="gym-wrap">
+        <input type="text" id="gym_${id}" placeholder="ジム名で検索..." autocomplete="off" oninput="searchGym('${id}',this.value)"/>
+        <div class="gym-dd" id="dd_${id}"></div>
+      </div>
+      <div class="gym-ok" id="gymok_${id}"></div>
+    </div>
+    <div class="field">
+      <label>事件種別 <span class="required">*</span></label>
+      <div class="type-grid" id="types_${id}">
+        <div class="type-btn" onclick="selectType('${id}','route_partial',this)">🟡 ルートセット（一部）</div>
+        <div class="type-btn" onclick="selectType('${id}','route_all',this)">🔴 ルートセット（全部）</div>
+        <div class="type-btn" onclick="selectType('${id}','competition',this)">🏆 コンペ</div>
+        <div class="type-btn" onclick="selectType('${id}','event',this)">🎉 イベント</div>
+        <div class="type-btn" onclick="selectType('${id}','closure',this)">🔒 臨時休業</div>
+        <div class="type-btn" onclick="selectType('${id}','notice',this)">📢 お知らせ</div>
+        <div class="type-btn" onclick="selectType('${id}','hours_change',this)">🕐 営業時間変更</div>
+      </div>
+    </div>
+  </div>
+  <div class="row3">
+    <div class="field">
+      <label>タイトル（日本語）</label>
+      <input type="text" id="tja_${id}" placeholder="例：月例コンペ Vol.5"/>
+      <div class="auto-hint" id="hja_${id}">✓ 自動補完済み</div>
+    </div>
+    <div class="field">
+      <label>タイトル（English）</label>
+      <input type="text" id="ten_${id}" placeholder="Optional"/>
+      <div class="auto-hint" id="hen_${id}">✓ Auto-filled</div>
+    </div>
+    <div class="field">
+      <label>タイトル（中文）</label>
+      <input type="text" id="tzh_${id}" placeholder="可选"/>
+      <div class="auto-hint" id="hzh_${id}">✓ 自动补全</div>
+    </div>
+  </div>
+  <div class="field">
+    <label>説明</label>
+    <textarea id="desc_${id}" placeholder="詳細説明（任意）"></textarea>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <label>開始日時 <span class="required">*</span></label>
+      <input type="datetime-local" id="start_${id}"/>
+    </div>
+    <div class="field">
+      <label>終了日時</label>
+      <input type="datetime-local" id="end_${id}"/>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <label>開催住所</label>
+      <input type="text" id="loc_${id}" placeholder="東京都渋谷区..."/>
+    </div>
+    <div class="field">
+      <label>エントリーURL</label>
+      <input type="url" id="entry_${id}" placeholder="https://..."/>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <label>結果URL</label>
+      <input type="url" id="results_${id}" placeholder="https://..."/>
+    </div>
+    <div class="field">
+      <label>ポスター画像</label>
+      <div class="img-zone" id="imgzone_${id}"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleDrop('${id}',event)">
+        <input type="file" accept="image/*" onchange="handleFile('${id}',this.files[0])"/>
+        <div class="icon">🖼</div>
+        <div class="label">ドラッグ＆ドロップ または クリック</div>
+        <div class="sublabel">JPG / PNG / WEBP</div>
+      </div>
+      <img class="img-preview" id="preview_${id}"/>
+      <div class="img-uploading" id="uploading_${id}">⏫ アップロード中...</div>
+      <div class="img-url-result" id="imgurl_${id}"></div>
+    </div>
+  </div>
+  <div class="field">
+    <label>オプション</label>
+    <div class="toggle-row">
+      <label class="toggle-item"><input type="checkbox" id="pub_${id}" checked/> 公開する</label>
+      <label class="toggle-item"><input type="checkbox" id="cal_${id}" checked/> カレンダー表示</label>
+      <label class="toggle-item"><input type="checkbox" id="closed_${id}"/> 全館貸切</label>
+    </div>
+  </div>
+  `;
+
+  document.getElementById('eventList').appendChild(div);
+  updateCount();
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('#block_'+id)) document.getElementById('dd_'+id).style.display='none';
+  });
+}
+
+function removeEvent(id){
+  const el=document.getElementById('block_'+id);
+  if(el)el.remove();
+  delete eventData[id];
+  updateCount();
+}
+
+function updateCount(){
+  const n=document.querySelectorAll('.event-block').length;
+  document.getElementById('countBadge').textContent=n;
+}
+
+function searchGym(id,q){
+  eventData[id].gymId=null;
+  document.getElementById('gymok_'+id).classList.remove('show');
+  const dd=document.getElementById('dd_'+id);
+  if(!q){dd.style.display='none';return;}
+  const filtered=gyms.filter(g=>g.name.toLowerCase().includes(q.toLowerCase()));
+  if(!filtered.length){dd.style.display='none';return;}
+  dd.innerHTML=filtered.map(g=>`
+    <div class="gym-item" onclick="pickGym('${id}','${g.id}','${g.name.replace(/'/g,"\\'")}')">
+      ${g.name}<div class="gym-id-small">${g.id}</div>
+    </div>`).join('');
+  dd.style.display='block';
+}
+
+function pickGym(id,gymId,gymName){
+  eventData[id].gymId=gymId;
+  eventData[id].gymName=gymName;
+  document.getElementById('gym_'+id).value=gymName;
+  document.getElementById('dd_'+id).style.display='none';
+  const ok=document.getElementById('gymok_'+id);
+  ok.textContent='✓ gym_id: '+gymId;
+  ok.classList.add('show');
+  updateSummary(id);
+}
+
+function selectType(id,type,btn){
+  document.querySelectorAll('#types_'+id+' .type-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  eventData[id].type=type;
+  ['ja','en','zh'].forEach(key=>{
+    const input=document.getElementById('t'+key+'_'+id);
+    const hint=document.getElementById('h'+key+'_'+id);
+    if(AUTO_TYPES.has(type)){
+      input.value=AUTO_TITLES[type][key];
+      input.readOnly=true;
+      hint.style.display='block';
+    }else{
+      input.readOnly=false;
+      hint.style.display='none';
+    }
+  });
+  if(type==='hours_change'){
+    const descEl=document.getElementById('desc_'+id);
+    if(descEl&&!descEl.value){
+      descEl.value='本日の営業時間は〇〇:00〜〇〇:00となります。\nToday\'s hours: 〇〇:00–〇〇:00\n今日营业时间：〇〇:00～〇〇:00';
+    }
+  }
+  updateSummary(id);
+}
+
+function updateSummary(id){
+  const gym=eventData[id].gymName||'';
+  const type=eventData[id].type||'';
+  const tja=document.getElementById('tja_'+id)?.value||'';
+  const parts=[];
+  if(gym)parts.push(gym.split('|')[0]);
+  if(tja)parts.push(tja);
+  else if(type)parts.push(type);
+  document.getElementById('summary_'+id).textContent=parts.length?'— '+parts.join(' / '):'';
+  document.getElementById('block_'+id).classList.toggle('has-data',!!gym||!!type);
+}
+
+async function handleDrop(id,e){
+  e.preventDefault();
+  document.getElementById('imgzone_'+id).classList.remove('drag');
+  const file=e.dataTransfer.files[0];
+  if(file)await handleFile(id,file);
+}
+
+async function handleFile(id,file){
+  if(!file||!file.type.startsWith('image/'))return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=document.getElementById('preview_'+id);
+    img.src=ev.target.result;
+    img.style.display='block';
+  };
+  reader.readAsDataURL(file);
+  const uploading=document.getElementById('uploading_'+id);
+  const urlEl=document.getElementById('imgurl_'+id);
+  uploading.style.display='block';
+  urlEl.style.display='none';
+  const ext=file.name.split('.').pop()||'jpg';
+  const fileName=`${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const{data,error}=await sb.storage.from('gear-images').upload(fileName,file,{contentType:file.type});
+  uploading.style.display='none';
+  if(error){
+    urlEl.textContent='❌ アップロード失敗: '+error.message;
+    urlEl.style.color='#dc2626';
+    urlEl.style.display='block';
+    return;
+  }
+  const publicUrl=sb.storage.from('gear-images').getPublicUrl(data.path).data.publicUrl;
+  eventData[id].posterUrl=publicUrl;
+  urlEl.textContent='✓ '+publicUrl;
+  urlEl.style.color='#16a34a';
+  urlEl.style.display='block';
+}
+
+function generateAll(){
+  const blocks=document.querySelectorAll('.event-block');
+  if(!blocks.length){alert('事件を1件以上追加してください');return;}
+  const sqls=[];
+  generatedEvents=[];
+  let hasError=false;
+
+  blocks.forEach(block=>{
+    const id=block.id.replace('block_','');
+    const d=eventData[id];
+    if(!d.gymId){alert(`事件 #${id.replace('ev','')}：ジムを選択してください`);hasError=true;return;}
+    if(!d.type){alert(`事件 #${id.replace('ev','')}：種別を選択してください`);hasError=true;return;}
+    const start=document.getElementById('start_'+id).value;
+    if(!start){alert(`事件 #${id.replace('ev','')}：開始日時を入力してください`);hasError=true;return;}
+
+    const uid=uuidv4();
+    const tja=document.getElementById('tja_'+id).value;
+    const ten=document.getElementById('ten_'+id).value;
+    const tzh=document.getElementById('tzh_'+id).value;
+    const desc=document.getElementById('desc_'+id).value;
+    const startVal=new Date(start).toISOString();
+    const endRaw=document.getElementById('end_'+id).value;
+    const endVal=endRaw?new Date(endRaw).toISOString():null;
+    const loc=document.getElementById('loc_'+id).value;
+    const entry=document.getElementById('entry_'+id).value;
+    const results=document.getElementById('results_'+id).value;
+    const poster=d.posterUrl||'';
+    const pub=document.getElementById('pub_'+id).checked;
+    const cal=document.getElementById('cal_'+id).checked;
+    const closed=document.getElementById('closed_'+id).checked;
+
+    generatedEvents.push({gymName:d.gymName,type:d.type,titleJa:tja,desc:desc});
+
+    sqls.push(`-- ▼ 事件${id.replace('ev','')}：${d.gymName} / ${tja||d.type}
+INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,poster_url,start_at,end_at,location,entry_url,results_url,is_closed_to_public,show_on_calendar,is_published)
+VALUES ('${uid}','${d.gymId}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},${escSQL(poster)},'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${closed},${cal},${pub});`);
+  });
+
+  if(hasError)return;
+  const sql=sqls.join('\n\n');
+  document.getElementById('sqlOutput').textContent=sql;
+  document.getElementById('outputWrap').classList.add('show');
+  document.getElementById('lineBtn').style.display='block';
+  document.getElementById('lineStatus').className='line-status';
+  document.getElementById('outputWrap').scrollIntoView({behavior:'smooth'});
+}
+
+function copySQL(){
+  const sql=document.getElementById('sqlOutput').textContent;
+  navigator.clipboard.writeText(sql).then(()=>{
+    const btn=document.getElementById('copyBtn');
+    btn.textContent='✓ コピーしました';
+    btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='📋 コピー';btn.classList.remove('copied');},2000);
+  });
+}
+
+async function sendLineNotification(){
+  if(!generatedEvents.length)return;
+  const btn=document.getElementById('lineBtn');
+  const status=document.getElementById('lineStatus');
+  btn.disabled=true;
+  btn.textContent='送信中...';
+  status.className='line-status';
+
+  const lines=generatedEvents.map(ev=>{
+    const emoji=TYPE_EMOJI[ev.type]||'📌';
+    const gymShort=ev.gymName.split('|')[0].trim();
+    const title=ev.titleJa||AUTO_TITLES[ev.type]?.ja||ev.type;
+    let text=`${emoji} ${gymShort}\n${title}`;
+    if(ev.desc)text+=`\n${ev.desc}`;
+    return text;
+  });
+
+  const messageText=[
+    '🧗 いわとも 更新情報',
+    '',
+    ...lines,
+    '',
+    '詳細はアプリで確認',
+    'https://www.iwatomo.com'
+  ].join('\n');
+
+  try{
+    const res=await fetch('https://api.line.me/v2/bot/message/broadcast',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer SYsjog/2IQsmyzhvu/iRR+m13mH+t05Guh6X0Od9ze0UhXQu29LCil5qSBJjYJ3p1C0WKzJEEKj0sb4DPDT8k8YvZJxspjSZaRR4qfnksvl+ZJxtHl/GciOyR12JrhtxJDuuFP/RFeCIEKhEctjB9AdB04t89/1O/w1cDnyilFU=',
+      },
+      body:JSON.stringify({messages:[{type:'text',text:messageText}]})
+    });
+    if(res.ok){
+      status.textContent='✅ LINE への通知を送信しました！';
+      status.className='line-status success';
+      btn.textContent='✅ 送信済み';
+    }else{
+      const err=await res.json();
+      status.textContent='❌ 送信失敗: '+(err.error||JSON.stringify(err));
+      status.className='line-status error';
+      btn.disabled=false;
+      btn.textContent='📣 LINE に通知を送る';
+    }
+  }catch(e){
+    status.textContent='❌ エラー: '+e.message;
+    status.className='line-status error';
+    btn.disabled=false;
+    btn.textContent='📣 LINE に通知を送る';
+  }
+}
+
+addEvent();
+</script>
+</body>
+</html>
