@@ -42,15 +42,22 @@ textarea{resize:vertical;min-height:60px}
 .toggle-row{display:flex;gap:12px;flex-wrap:wrap}
 .toggle-item{display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer}
 .toggle-item input[type=checkbox]{width:15px;height:15px;cursor:pointer}
-.img-zone{border:2px dashed #d0c8be;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:#faf8f6;position:relative;min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
-.img-zone:hover,.img-zone.drag{border-color:#6b4f3a;background:#f5f0eb}
-.img-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.img-zone .icon{font-size:24px}
-.img-zone .label{font-size:12px;color:#8c7b6b}
-.img-zone .sublabel{font-size:11px;color:#b0a899}
-.img-preview{width:100%;height:120px;object-fit:cover;border-radius:10px;margin-top:8px;display:none}
-.img-uploading{font-size:12px;color:#6b4f3a;margin-top:6px;display:none}
-.img-url-result{font-size:11px;color:#16a34a;margin-top:4px;word-break:break-all;display:none}
+
+/* 画像アップロード */
+.img-upload-area{border:2px dashed #d0c8be;border-radius:12px;padding:16px;background:#faf8f6;transition:all .2s}
+.img-upload-area.drag{border-color:#6b4f3a;background:#f5f0eb}
+.img-drop-zone{text-align:center;cursor:pointer;position:relative;padding:16px}
+.img-drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.img-drop-zone .icon{font-size:24px}
+.img-drop-zone .label{font-size:12px;color:#8c7b6b;margin-top:4px}
+.img-drop-zone .sublabel{font-size:11px;color:#b0a899}
+.img-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.img-thumb{position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid #ece8e2}
+.img-thumb img{width:100%;height:100%;object-fit:cover}
+.img-thumb-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.img-uploading-badge{position:absolute;inset:0;background:rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:center;font-size:10px;color:#6b4f3a}
+.img-count{font-size:11px;color:#8c7b6b;margin-top:6px}
+
 .add-btn{width:100%;padding:12px;background:#f0ede9;color:#6b4f3a;border:2px dashed #c8b8a8;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px}
 .add-btn:hover{background:#e8e0d8}
 .gen-btn{width:100%;padding:14px;background:#6b4f3a;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px}
@@ -139,7 +146,7 @@ function escSQL(val){
 function addEvent(){
   eventCount++;
   const id='ev'+eventCount;
-  eventData[id]={gymId:null,gymName:null,type:null,posterUrl:''};
+  eventData[id]={gymId:null,gymName:null,type:null,posterUrl:'',imageUrls:[]};
 
   const div=document.createElement('div');
   div.className='event-block';
@@ -217,20 +224,21 @@ function addEvent(){
       <label>結果URL</label>
       <input type="url" id="results_${id}" placeholder="https://..."/>
     </div>
-    <div class="field">
-      <label>ポスター画像</label>
-      <div class="img-zone" id="imgzone_${id}"
-        ondragover="event.preventDefault();this.classList.add('drag')"
-        ondragleave="this.classList.remove('drag')"
-        ondrop="handleDrop('${id}',event)">
-        <input type="file" accept="image/*" onchange="handleFile('${id}',this.files[0])"/>
+  </div>
+  <div class="field">
+    <label>画像（複数可）</label>
+    <div class="img-upload-area" id="imgarea_${id}"
+      ondragover="event.preventDefault();document.getElementById('imgarea_${id}').classList.add('drag')"
+      ondragleave="document.getElementById('imgarea_${id}').classList.remove('drag')"
+      ondrop="handleDrop('${id}',event)">
+      <div class="img-drop-zone">
+        <input type="file" accept="image/*" multiple onchange="handleFiles('${id}',this.files)"/>
         <div class="icon">🖼</div>
-        <div class="label">ドラッグ＆ドロップ または クリック</div>
-        <div class="sublabel">JPG / PNG / WEBP</div>
+        <div class="label">ドラッグ＆ドロップ または クリックで複数選択</div>
+        <div class="sublabel">JPG / PNG / WEBP · 最大10枚</div>
       </div>
-      <img class="img-preview" id="preview_${id}"/>
-      <div class="img-uploading" id="uploading_${id}">⏫ アップロード中...</div>
-      <div class="img-url-result" id="imgurl_${id}"></div>
+      <div class="img-previews" id="previews_${id}"></div>
+      <div class="img-count" id="imgcount_${id}"></div>
     </div>
   </div>
   <div class="field">
@@ -326,39 +334,64 @@ function updateSummary(id){
 
 async function handleDrop(id,e){
   e.preventDefault();
-  document.getElementById('imgzone_'+id).classList.remove('drag');
-  const file=e.dataTransfer.files[0];
-  if(file)await handleFile(id,file);
+  document.getElementById('imgarea_'+id).classList.remove('drag');
+  const files=e.dataTransfer.files;
+  if(files.length)await handleFiles(id,files);
 }
 
-async function handleFile(id,file){
-  if(!file||!file.type.startsWith('image/'))return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    const img=document.getElementById('preview_'+id);
-    img.src=ev.target.result;
-    img.style.display='block';
-  };
-  reader.readAsDataURL(file);
-  const uploading=document.getElementById('uploading_'+id);
-  const urlEl=document.getElementById('imgurl_'+id);
-  uploading.style.display='block';
-  urlEl.style.display='none';
+async function handleFiles(id,files){
+  const arr=Array.from(files).filter(f=>f.type.startsWith('image/'));
+  const current=eventData[id].imageUrls.length;
+  const remaining=10-current;
+  const toUpload=arr.slice(0,remaining);
+  for(const file of toUpload){
+    await uploadImage(id,file);
+  }
+}
+
+async function uploadImage(id,file){
+  const previews=document.getElementById('previews_'+id);
+
+  // プレビューサムネイル追加
+  const thumbId='thumb_'+id+'_'+Date.now();
+  const thumb=document.createElement('div');
+  thumb.className='img-thumb';
+  thumb.id=thumbId;
+  thumb.innerHTML=`<div class="img-uploading-badge">⏫</div>`;
+  previews.appendChild(thumb);
+
   const ext=file.name.split('.').pop()||'jpg';
-  const fileName=`${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  const fileName=`events/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const{data,error}=await sb.storage.from('gear-images').upload(fileName,file,{contentType:file.type});
-  uploading.style.display='none';
+
   if(error){
-    urlEl.textContent='❌ アップロード失敗: '+error.message;
-    urlEl.style.color='#dc2626';
-    urlEl.style.display='block';
+    thumb.innerHTML=`<div class="img-uploading-badge" style="color:#dc2626">❌</div>`;
     return;
   }
+
   const publicUrl=sb.storage.from('gear-images').getPublicUrl(data.path).data.publicUrl;
-  eventData[id].posterUrl=publicUrl;
-  urlEl.textContent='✓ '+publicUrl;
-  urlEl.style.color='#16a34a';
-  urlEl.style.display='block';
+  eventData[id].imageUrls.push(publicUrl);
+
+  // サムネイル更新
+  thumb.innerHTML=`
+    <img src="${publicUrl}"/>
+    <button class="img-thumb-del" onclick="removeImage('${id}','${publicUrl}','${thumbId}')">×</button>
+  `;
+
+  updateImgCount(id);
+}
+
+function removeImage(id,url,thumbId){
+  eventData[id].imageUrls=eventData[id].imageUrls.filter(u=>u!==url);
+  const el=document.getElementById(thumbId);
+  if(el)el.remove();
+  updateImgCount(id);
+}
+
+function updateImgCount(id){
+  const count=eventData[id].imageUrls.length;
+  const el=document.getElementById('imgcount_'+id);
+  if(el)el.textContent=count>0?`${count}枚アップロード済み`:'';
 }
 
 function generateAll(){
@@ -387,16 +420,16 @@ function generateAll(){
     const loc=document.getElementById('loc_'+id).value;
     const entry=document.getElementById('entry_'+id).value;
     const results=document.getElementById('results_'+id).value;
-    const poster=d.posterUrl||'';
     const pub=document.getElementById('pub_'+id).checked;
     const cal=document.getElementById('cal_'+id).checked;
     const closed=document.getElementById('closed_'+id).checked;
+    const imageUrlsJson=JSON.stringify(d.imageUrls).replace(/'/g,"''");
 
     generatedEvents.push({gymName:d.gymName,type:d.type,titleJa:tja,desc:desc});
 
     sqls.push(`-- ▼ 事件${id.replace('ev','')}：${d.gymName} / ${tja||d.type}
-INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,poster_url,start_at,end_at,location,entry_url,results_url,is_closed_to_public,show_on_calendar,is_published)
-VALUES ('${uid}','${d.gymId}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},${escSQL(poster)},'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${closed},${cal},${pub});`);
+INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,poster_url,image_urls,start_at,end_at,location,entry_url,results_url,is_closed_to_public,show_on_calendar,is_published)
+VALUES ('${uid}','${d.gymId}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},NULL,'${imageUrlsJson}'::jsonb,'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${closed},${cal},${pub});`);
   });
 
   if(hasError)return;
