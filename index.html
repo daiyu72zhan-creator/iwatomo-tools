@@ -42,8 +42,15 @@ textarea{resize:vertical;min-height:60px}
 .toggle-row{display:flex;gap:12px;flex-wrap:wrap}
 .toggle-item{display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer}
 .toggle-item input[type=checkbox]{width:15px;height:15px;cursor:pointer}
-
-/* 画像アップロード */
+.date-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.date-field{display:flex;flex-direction:column;gap:4px}
+.date-field label{font-size:12px;font-weight:600;color:#6b4f3a}
+.date-field input[type=date]{width:100%}
+.time-toggle-row{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap}
+.time-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b4f3a;cursor:pointer}
+.time-toggle.red{color:#dc2626}
+.time-toggle input{width:13px;height:13px;cursor:pointer}
+.time-field{display:none;margin-top:4px}
 .img-upload-area{border:2px dashed #d0c8be;border-radius:12px;padding:16px;background:#faf8f6;transition:all .2s}
 .img-upload-area.drag{border-color:#6b4f3a;background:#f5f0eb}
 .img-drop-zone{text-align:center;cursor:pointer;position:relative;padding:16px}
@@ -57,7 +64,6 @@ textarea{resize:vertical;min-height:60px}
 .img-thumb-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
 .img-uploading-badge{position:absolute;inset:0;background:rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:center;font-size:10px;color:#6b4f3a}
 .img-count{font-size:11px;color:#8c7b6b;margin-top:6px}
-
 .add-btn{width:100%;padding:12px;background:#f0ede9;color:#6b4f3a;border:2px dashed #c8b8a8;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:16px}
 .add-btn:hover{background:#e8e0d8}
 .gen-btn{width:100%;padding:14px;background:#6b4f3a;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px}
@@ -107,7 +113,6 @@ textarea{resize:vertical;min-height:60px}
 <script>
 const SUPABASE_URL='https://rwxgomnvaydpwwgdzobc.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3eGdvbW52YXlkcHd3Z2R6b2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Mzc3NDIsImV4cCI6MjA4OTQxMzc0Mn0.p_b6mYPSK58v8otss2Bx_c1UFIGhxMloqSzwQcWiNUQ';
-
 const {createClient}=supabase;
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
@@ -143,10 +148,26 @@ function escSQL(val){
   return`'${String(val).replace(/'/g,"''")}'`;
 }
 
+function onTimeCheck(id) {
+  const checked = document.getElementById('timecheck_'+id).checked;
+  document.getElementById('timefield_'+id).style.display = checked ? 'block' : 'none';
+  if (checked) {
+    document.getElementById('allday_'+id).checked = false;
+  }
+}
+
+function onAlldayCheck(id) {
+  const checked = document.getElementById('allday_'+id).checked;
+  if (checked) {
+    document.getElementById('timecheck_'+id).checked = false;
+    document.getElementById('timefield_'+id).style.display = 'none';
+  }
+}
+
 function addEvent(){
   eventCount++;
   const id='ev'+eventCount;
-  eventData[id]={gymId:null,gymName:null,type:null,posterUrl:'',imageUrls:[]};
+  eventData[id]={gymId:null,gymName:null,type:null,imageUrls:[]};
 
   const div=document.createElement('div');
   div.className='event-block';
@@ -199,17 +220,41 @@ function addEvent(){
     <label>説明</label>
     <textarea id="desc_${id}" placeholder="詳細説明（任意）"></textarea>
   </div>
-  <div class="row2">
-    <div class="field">
-      <label>開始日時 <span class="required">*</span></label>
-      <input type="datetime-local" id="start_${id}"/>
+
+  <div class="date-row">
+    <div class="date-field">
+      <label>開始日 <span class="required">*</span></label>
+      <input type="date" id="startdate_${id}"/>
+      <div class="time-toggle-row">
+        <label class="time-toggle">
+          <input type="checkbox" id="timecheck_${id}" onchange="onTimeCheck('${id}')"/>
+          時間あり
+        </label>
+      </div>
+      <div class="time-field" id="timefield_${id}">
+        <input type="time" id="starttime_${id}" value="10:00"/>
+      </div>
     </div>
-    <div class="field">
-      <label>終了日時</label>
-      <input type="datetime-local" id="end_${id}"/>
+    <div class="date-field">
+      <label>終了日</label>
+      <input type="date" id="enddate_${id}"/>
+      <div class="time-toggle-row">
+        <label class="time-toggle">
+          <input type="checkbox" id="endtimecheck_${id}" onchange="onEndTimeCheck('${id}')"/>
+          時間あり
+        </label>
+        <label class="time-toggle red">
+          <input type="checkbox" id="allday_${id}" onchange="onAlldayCheck('${id}')"/>
+          全日休業
+        </label>
+      </div>
+      <div class="time-field" id="endtimefield_${id}">
+        <input type="time" id="endtime_${id}" value="21:00"/>
+      </div>
     </div>
   </div>
-  <div class="row2">
+
+  <div class="row2" style="margin-top:12px">
     <div class="field">
       <label>開催住所</label>
       <input type="text" id="loc_${id}" placeholder="東京都渋谷区..."/>
@@ -256,6 +301,22 @@ function addEvent(){
   document.addEventListener('click', e=>{
     if(!e.target.closest('#block_'+id)) document.getElementById('dd_'+id).style.display='none';
   });
+}
+
+function onEndTimeCheck(id) {
+  const checked = document.getElementById('endtimecheck_'+id).checked;
+  document.getElementById('endtimefield_'+id).style.display = checked ? 'block' : 'none';
+  if (checked) {
+    document.getElementById('allday_'+id).checked = false;
+  }
+}
+
+function onAlldayCheck(id) {
+  const checked = document.getElementById('allday_'+id).checked;
+  if (checked) {
+    document.getElementById('endtimecheck_'+id).checked = false;
+    document.getElementById('endtimefield_'+id).style.display = 'none';
+  }
 }
 
 function removeEvent(id){
@@ -342,17 +403,12 @@ async function handleDrop(id,e){
 async function handleFiles(id,files){
   const arr=Array.from(files).filter(f=>f.type.startsWith('image/'));
   const current=eventData[id].imageUrls.length;
-  const remaining=10-current;
-  const toUpload=arr.slice(0,remaining);
-  for(const file of toUpload){
-    await uploadImage(id,file);
-  }
+  const toUpload=arr.slice(0,10-current);
+  for(const file of toUpload) await uploadImage(id,file);
 }
 
 async function uploadImage(id,file){
   const previews=document.getElementById('previews_'+id);
-
-  // プレビューサムネイル追加
   const thumbId='thumb_'+id+'_'+Date.now();
   const thumb=document.createElement('div');
   thumb.className='img-thumb';
@@ -364,20 +420,11 @@ async function uploadImage(id,file){
   const fileName=`events/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   const{data,error}=await sb.storage.from('gear-images').upload(fileName,file,{contentType:file.type});
 
-  if(error){
-    thumb.innerHTML=`<div class="img-uploading-badge" style="color:#dc2626">❌</div>`;
-    return;
-  }
+  if(error){thumb.innerHTML=`<div class="img-uploading-badge" style="color:#dc2626">❌</div>`;return;}
 
   const publicUrl=sb.storage.from('gear-images').getPublicUrl(data.path).data.publicUrl;
   eventData[id].imageUrls.push(publicUrl);
-
-  // サムネイル更新
-  thumb.innerHTML=`
-    <img src="${publicUrl}"/>
-    <button class="img-thumb-del" onclick="removeImage('${id}','${publicUrl}','${thumbId}')">×</button>
-  `;
-
+  thumb.innerHTML=`<img src="${publicUrl}"/><button class="img-thumb-del" onclick="removeImage('${id}','${publicUrl}','${thumbId}')">×</button>`;
   updateImgCount(id);
 }
 
@@ -394,6 +441,32 @@ function updateImgCount(id){
   if(el)el.textContent=count>0?`${count}枚アップロード済み`:'';
 }
 
+function buildStartDateTime(id) {
+  const date = document.getElementById('startdate_'+id).value;
+  if (!date) return null;
+  const hasTime = document.getElementById('timecheck_'+id).checked;
+  if (hasTime) {
+    const time = document.getElementById('starttime_'+id).value;
+    return new Date(`${date}T${time}:00`).toISOString();
+  }
+  return new Date(`${date}T00:00:00`).toISOString();
+}
+
+function buildEndDateTime(id) {
+  const date = document.getElementById('enddate_'+id).value;
+  if (!date) return null;
+  const hasTime = document.getElementById('endtimecheck_'+id).checked;
+  const allday = document.getElementById('allday_'+id).checked;
+  if (hasTime) {
+    const time = document.getElementById('endtime_'+id).value;
+    return new Date(`${date}T${time}:00`).toISOString();
+  }
+  if (allday) {
+    return new Date(`${date}T23:59:59`).toISOString();
+  }
+  return new Date(`${date}T00:00:00`).toISOString();
+}
+
 function generateAll(){
   const blocks=document.querySelectorAll('.event-block');
   if(!blocks.length){alert('事件を1件以上追加してください');return;}
@@ -406,17 +479,15 @@ function generateAll(){
     const d=eventData[id];
     if(!d.gymId){alert(`事件 #${id.replace('ev','')}：ジムを選択してください`);hasError=true;return;}
     if(!d.type){alert(`事件 #${id.replace('ev','')}：種別を選択してください`);hasError=true;return;}
-    const start=document.getElementById('start_'+id).value;
-    if(!start){alert(`事件 #${id.replace('ev','')}：開始日時を入力してください`);hasError=true;return;}
+    const startVal=buildStartDateTime(id);
+    if(!startVal){alert(`事件 #${id.replace('ev','')}：開始日を入力してください`);hasError=true;return;}
+    const endVal=buildEndDateTime(id);
 
     const uid=uuidv4();
     const tja=document.getElementById('tja_'+id).value;
     const ten=document.getElementById('ten_'+id).value;
     const tzh=document.getElementById('tzh_'+id).value;
     const desc=document.getElementById('desc_'+id).value;
-    const startVal=new Date(start).toISOString();
-    const endRaw=document.getElementById('end_'+id).value;
-    const endVal=endRaw?new Date(endRaw).toISOString():null;
     const loc=document.getElementById('loc_'+id).value;
     const entry=document.getElementById('entry_'+id).value;
     const results=document.getElementById('results_'+id).value;
