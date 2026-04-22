@@ -19,6 +19,9 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px}
 .block-summary{font-size:11px;color:#8c7b6b;margin-left:8px}
 .del-btn{background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
 .del-btn:hover{background:#fca5a5}
+.dup-btn{background:#dbeafe;color:#1e40af;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-right:6px}
+.dup-btn:hover{background:#bfdbfe}
+.block-actions{display:flex;align-items:center}
 .field{margin-bottom:12px}
 label{display:block;font-size:12px;font-weight:600;color:#6b4f3a;margin-bottom:4px}
 input,select,textarea{width:100%;padding:8px 11px;border:1px solid #ece8e2;border-radius:9px;font-size:13px;background:#f7f5f2;color:#2d1f14;outline:none;transition:border-color .15s}
@@ -182,7 +185,10 @@ function addEvent(){
   div.innerHTML=`
   <div class="block-header">
     <div><span class="block-title">事件 #${eventCount}</span><span class="block-summary" id="summary_${id}"></span></div>
-    <button class="del-btn" onclick="removeEvent('${id}')">削除</button>
+    <div class="block-actions">
+      <button class="dup-btn" onclick="duplicateEvent('${id}')">📋 複製</button>
+      <button class="del-btn" onclick="removeEvent('${id}')">削除</button>
+    </div>
   </div>
   <div class="row2">
     <div class="field">
@@ -317,6 +323,107 @@ function addEvent(){
   document.addEventListener('click', e=>{
     if(!e.target.closest('#block_'+id)) document.getElementById('dd_'+id).style.display='none';
   });
+}
+
+function duplicateEvent(srcId){
+  const srcData = eventData[srcId];
+  if (!srcData) return;
+
+  // 1. 新しい事件ブロックを追加
+  addEvent();
+
+  // 2. 新しく作られた最新ブロックの id を取得
+  const newId = 'ev' + eventCount;
+
+  // 3. eventData に gym/type/imageUrls をコピー (gym は ID も含む)
+  eventData[newId] = {
+    gymId: srcData.gymId,
+    gymName: srcData.gymName,
+    type: srcData.type,
+    imageUrls: [...srcData.imageUrls],  // 新配列でコピー
+  };
+
+  // 4. ジム表示を更新
+  if (srcData.gymName) {
+    document.getElementById('gym_'+newId).value = srcData.gymName;
+    const ok = document.getElementById('gymok_'+newId);
+    ok.textContent = '✓ gym_id: ' + srcData.gymId;
+    ok.classList.add('show');
+  }
+
+  // 5. 種別ボタンを active にする
+  if (srcData.type) {
+    const btn = document.querySelector(`#types_${newId} .type-btn[onclick*="'${srcData.type}'"]`);
+    if (btn) selectType(newId, srcData.type, btn);
+  }
+
+  // 6. テキスト系フィールドをコピー
+  const fields = ['tja','ten','tzh','desc','loc','entry','results'];
+  fields.forEach(f => {
+    const src = document.getElementById(f+'_'+srcId);
+    const dst = document.getElementById(f+'_'+newId);
+    if (src && dst) dst.value = src.value;
+  });
+
+  // 7. 日付・時刻フィールドをコピー
+  const dateFields = ['startdate','starttime','enddate','endtime'];
+  dateFields.forEach(f => {
+    const src = document.getElementById(f+'_'+srcId);
+    const dst = document.getElementById(f+'_'+newId);
+    if (src && dst) dst.value = src.value;
+  });
+
+  // 8. 時間チェックボックスをコピー
+  const checkFields = ['timecheck','endtimecheck','allday'];
+  checkFields.forEach(f => {
+    const src = document.getElementById(f+'_'+srcId);
+    const dst = document.getElementById(f+'_'+newId);
+    if (src && dst) {
+      dst.checked = src.checked;
+      // 時刻入力欄の表示状態も合わせる
+      if (f === 'timecheck') {
+        document.getElementById('timefield_'+newId).style.display = src.checked ? 'block' : 'none';
+      }
+      if (f === 'endtimecheck') {
+        document.getElementById('endtimefield_'+newId).style.display = src.checked ? 'block' : 'none';
+      }
+    }
+  });
+
+  // 9. オプションのチェックボックス
+  ['pub','cal','closed'].forEach(f => {
+    const src = document.getElementById(f+'_'+srcId);
+    const dst = document.getElementById(f+'_'+newId);
+    if (src && dst) dst.checked = src.checked;
+  });
+
+  // 10. notice の場合 related_type もコピー
+  if (srcData.type === 'notice') {
+    const srcRel = document.getElementById('reltype_'+srcId);
+    const dstRel = document.getElementById('reltype_'+newId);
+    if (srcRel && dstRel) dstRel.value = srcRel.value;
+  }
+
+  // 11. 画像のサムネイルを再表示
+  if (srcData.imageUrls.length > 0) {
+    const previews = document.getElementById('previews_'+newId);
+    srcData.imageUrls.forEach(url => {
+      const thumbId = 'thumb_'+newId+'_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      const thumb = document.createElement('div');
+      thumb.className = 'img-thumb';
+      thumb.id = thumbId;
+      thumb.innerHTML = `<img src="${url}"/><button class="img-thumb-del" onclick="removeImage('${newId}','${url}','${thumbId}')">×</button>`;
+      previews.appendChild(thumb);
+    });
+    updateImgCount(newId);
+  }
+
+  updateSummary(newId);
+
+  // 12. 新ブロックまでスクロール
+  setTimeout(() => {
+    document.getElementById('block_'+newId).scrollIntoView({behavior:'smooth', block:'center'});
+  }, 100);
 }
 
 function removeEvent(id){
