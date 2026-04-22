@@ -285,6 +285,10 @@ function addEvent(){
       <label>結果URL</label>
       <input type="url" id="results_${id}" placeholder="https://..."/>
     </div>
+    <div class="field">
+      <label>エントリー締切</label>
+      <input type="date" id="deadline_${id}"/>
+    </div>
   </div>
   <div class="field">
     <label>画像（複数可）</label>
@@ -497,6 +501,7 @@ function generateAll(){
     const loc=document.getElementById('loc_'+id).value;
     const entry=document.getElementById('entry_'+id).value;
     const results=document.getElementById('results_'+id).value;
+    const deadline=document.getElementById('deadline_'+id).value;
     const pub=document.getElementById('pub_'+id).checked;
     const cal=document.getElementById('cal_'+id).checked;
     const closed=document.getElementById('closed_'+id).checked;
@@ -507,11 +512,14 @@ function generateAll(){
       ? (document.getElementById('reltype_'+id).value || null)
       : null;
 
+    // entry_deadline: 設定されていれば日付形式
+    const deadlineVal = deadline ? `'${deadline}'` : 'NULL';
+
     generatedEvents.push({gymName:d.gymName,type:d.type,titleJa:tja,desc:desc});
 
     sqls.push(`-- ▼ 事件${id.replace('ev','')}：${d.gymName} / ${tja||d.type}
-INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,poster_url,image_urls,start_at,end_at,location,entry_url,results_url,is_closed_to_public,show_on_calendar,is_published,related_type)
-VALUES ('${uid}','${d.gymId}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},NULL,'${imageUrlsJson}'::jsonb,'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${closed},${cal},${pub},${escSQL(relatedType)});`);
+INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,image_urls,start_at,end_at,location,entry_url,results_url,entry_deadline,is_closed_to_public,show_on_calendar,is_published,related_type)
+VALUES ('${uid}','${d.gymId}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},'${imageUrlsJson}'::jsonb,'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${deadlineVal},${closed},${cal},${pub},${escSQL(relatedType)});`);
   });
 
   if(hasError)return;
