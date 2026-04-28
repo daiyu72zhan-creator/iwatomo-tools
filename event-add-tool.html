@@ -554,15 +554,24 @@ function updateImgCount(id){
   if(el)el.textContent=count>0?`${count}枚アップロード済み`:'';
 }
 
+// 入力された日付・時刻を日本時間 (JST = UTC+9) として解釈し、
+// ISO 文字列 (UTC) を返す。これにより操作する人がどの時区にいても
+// DB には常に日本時間ベースの正しいタイムスタンプが入る。
+function jstToISO(dateStr, timeStr) {
+  // dateStr: 'YYYY-MM-DD', timeStr: 'HH:MM'
+  // 末尾に '+09:00' を付けて日本時間として解釈させる
+  return new Date(`${dateStr}T${timeStr}:00+09:00`).toISOString();
+}
+
 function buildStartDateTime(id) {
   const date = document.getElementById('startdate_'+id).value;
   if (!date) return null;
   const hasTime = document.getElementById('timecheck_'+id).checked;
   if (hasTime) {
     const time = document.getElementById('starttime_'+id).value;
-    return new Date(`${date}T${time}:00`).toISOString();
+    return jstToISO(date, time);
   }
-  return new Date(`${date}T00:00:00`).toISOString();
+  return jstToISO(date, '00:00');
 }
 
 function buildEndDateTime(id) {
@@ -572,12 +581,12 @@ function buildEndDateTime(id) {
   const allday = document.getElementById('allday_'+id).checked;
   if (hasTime) {
     const time = document.getElementById('endtime_'+id).value;
-    return new Date(`${date}T${time}:00`).toISOString();
+    return jstToISO(date, time);
   }
   if (allday) {
-    return new Date(`${date}T23:59:59`).toISOString();
+    return jstToISO(date, '23:59');
   }
-  return new Date(`${date}T00:00:00`).toISOString();
+  return jstToISO(date, '00:00');
 }
 
 function generateAll(){
