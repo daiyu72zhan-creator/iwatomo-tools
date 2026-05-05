@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ジム館内図アップロード</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: #f5f1ec; color: #2d1f14;
+    margin: 0; padding: 24px;
+  }
+  .container { max-width: 800px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .subtitle { color: #8c7b6b; font-size: 13px; margin: 0 0 24px; }
+
+  .card {
+    background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    border: 1px solid #ece8e2;
+  }
+
+  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+  select, input[type="file"], input[type="text"] {
+    width: 100%; padding: 10px 12px; border: 1px solid #d6cdc1;
+    border-radius: 8px; font-size: 14px; background: #fff;
+  }
+
+  .gym-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px; margin-top: 16px;
+  }
+  .gym-item {
+    background: #fafaf7; border: 1px solid #ece8e2; border-radius: 10px;
+    padding: 12px; cursor: pointer; transition: all 0.15s;
+  }
+  .gym-item:hover { border-color: #6b4f3a; transform: translateY(-1px); }
+  .gym-item.has-plan { border-left: 4px solid #4caf50; }
+  .gym-item.no-plan  { border-left: 4px solid #d6cdc1; }
+  .gym-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .gym-status { font-size: 11px; color: #8c7b6b; }
+  .gym-status.has { color: #4caf50; }
+
+  .btn {
+    background: #6b4f3a; color: #fff; border: none; padding: 10px 18px;
+    border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600;
+  }
+  .btn:hover { background: #5a4030; }
+  .btn:disabled { background: #b0a899; cursor: not-allowed; }
+  .btn-danger { background: #b91c1c; }
+  .btn-danger:hover { background: #991b1b; }
+  .btn-secondary { background: #fff; color: #6b4f3a; border: 1px solid #6b4f3a; }
+  .btn-secondary:hover { background: #f5f1ec; }
+
+  .preview {
+    margin-top: 16px; padding: 12px; background: #fafaf7;
+    border-radius: 8px; border: 1px dashed #d6cdc1;
+  }
+  .preview img {
+    max-width: 100%; max-height: 400px; display: block; margin: 0 auto;
+    border-radius: 6px;
+  }
+  .preview-info {
+    text-align: center; font-size: 12px; color: #8c7b6b; margin-top: 8px;
+  }
+
+  .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .actions .btn { flex: 1; }
+
+  .status {
+    padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 12px;
+  }
+  .status.success { background: #dcfce7; color: #15803d; }
+  .status.error   { background: #fee2e2; color: #b91c1c; }
+  .status.info    { background: #dbeafe; color: #1e40af; }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🗺️ ジム館内図アップロード</h1>
+  <p class="subtitle">換線/路線更新事件の場所参照用に、各ジムの館内図 (壁の配置図) を登録します</p>
+
+  <!-- Supabase 設定 -->
+  <div class="card">
+    <label>Supabase URL</label>
+    <input type="text" id="supabaseUrl" value="https://rwxgomnvaydpwwgdzobc.supabase.co" />
+    <label>Service Role Key (anon でも可)</label>
+    <input type="text" id="supabaseKey" placeholder="eyJ..." />
+    <div class="actions">
+      <button class="btn" onclick="loadGyms()">ジム一覧を読み込む</button>
+    </div>
+    <div id="connStatus"></div>
+  </div>
+
+  <!-- ジム選択 -->
+  <div class="card hidden" id="gymCard">
+    <h3 style="margin: 0 0 8px;">ジムを選択</h3>
+    <p class="subtitle" style="margin: 0;">
+      <span style="color:#4caf50">■</span> 館内図あり
+      <span style="margin-left:12px;color:#d6cdc1">■</span> 未登録
+    </p>
+    <div class="gym-grid" id="gymGrid"></div>
+  </div>
+
+  <!-- アップロードエリア -->
+  <div class="card hidden" id="uploadCard">
+    <h3 style="margin: 0 0 4px;">選択中: <span id="selectedGymName" style="color:#6b4f3a"></span></h3>
+    <p class="subtitle" id="currentPlanInfo" style="margin: 4px 0 0;"></p>
+
+    <label>新しい館内図画像</label>
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
+
+    <div id="preview" class="preview hidden">
+      <img id="previewImg" alt="プレビュー" />
+      <div class="preview-info" id="previewInfo"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="uploadBtn" onclick="uploadFloorPlan()" disabled>アップロードして保存</button>
+      <button class="btn btn-secondary" onclick="cancelSelect()">キャンセル</button>
+      <button class="btn btn-danger hidden" id="deleteBtn" onclick="deleteFloorPlan()">館内図を削除</button>
+    </div>
+
+    <div id="uploadStatus"></div>
+  </div>
+</div>
+
+<script>
+let supabaseUrl = '';
+let supabaseKey = '';
+let gyms = [];
+let selectedGym = null;
+let pendingFile = null;
+
+const BUCKET = 'gym-floor-plans';
+
+function setStatus(elementId, message, type = 'info') {
+  const el = document.getElementById(elementId);
+  el.innerHTML = `<div class="status ${type}">${message}</div>`;
+}
+
+async function loadGyms() {
+  supabaseUrl = document.getElementById('supabaseUrl').value.trim().replace(/\/$/, '');
+  supabaseKey = document.getElementById('supabaseKey').value.trim();
+  if (!supabaseUrl || !supabaseKey) {
+    setStatus('connStatus', 'URL と Key を入力してください', 'error');
+    return;
+  }
+
+  setStatus('connStatus', '読み込み中...', 'info');
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/gyms?select=id,name,floor_plan_url&order=name.asc`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    gyms = await res.json();
+    renderGymGrid();
+    document.getElementById('gymCard').classList.remove('hidden');
+    setStatus('connStatus', `${gyms.length} 件のジムを取得しました`, 'success');
+  } catch (e) {
+    setStatus('connStatus', `エラー: ${e.message}`, 'error');
+  }
+}
+
+function renderGymGrid() {
+  const grid = document.getElementById('gymGrid');
+  grid.innerHTML = gyms.map(g => `
+    <div class="gym-item ${g.floor_plan_url ? 'has-plan' : 'no-plan'}" onclick="selectGym('${g.id}')">
+      <div class="gym-name">${g.name}</div>
+      <div class="gym-status ${g.floor_plan_url ? 'has' : ''}">
+        ${g.floor_plan_url ? '✓ 登録済み' : '未登録'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectGym(id) {
+  selectedGym = gyms.find(g => g.id === id);
+  if (!selectedGym) return;
+  document.getElementById('selectedGymName').textContent = selectedGym.name;
+  document.getElementById('uploadCard').classList.remove('hidden');
+
+  if (selectedGym.floor_plan_url) {
+    document.getElementById('currentPlanInfo').innerHTML =
+      `現在の館内図: <a href="${selectedGym.floor_plan_url}" target="_blank">${selectedGym.floor_plan_url}</a>`;
+    document.getElementById('deleteBtn').classList.remove('hidden');
+    // 既存図のプレビュー
+    document.getElementById('previewImg').src = selectedGym.floor_plan_url;
+    document.getElementById('previewInfo').textContent = '(現在登録されている館内図)';
+    document.getElementById('preview').classList.remove('hidden');
+  } else {
+    document.getElementById('currentPlanInfo').textContent = '館内図はまだ登録されていません';
+    document.getElementById('deleteBtn').classList.add('hidden');
+    document.getElementById('preview').classList.add('hidden');
+  }
+  document.getElementById('uploadBtn').disabled = true;
+  document.getElementById('fileInput').value = '';
+  pendingFile = null;
+  setStatus('uploadStatus', '', 'info');
+  document.getElementById('uploadCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelSelect() {
+  selectedGym = null;
+  pendingFile = null;
+  document.getElementById('uploadCard').classList.add('hidden');
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    setStatus('uploadStatus', 'ファイルサイズが 5MB を超えています', 'error');
+    return;
+  }
+  pendingFile = file;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('previewImg').src = ev.target.result;
+    document.getElementById('previewInfo').textContent =
+      `${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    document.getElementById('preview').classList.remove('hidden');
+    document.getElementById('uploadBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+async function uploadFloorPlan() {
+  if (!pendingFile || !selectedGym) return;
+  document.getElementById('uploadBtn').disabled = true;
+  setStatus('uploadStatus', 'アップロード中...', 'info');
+
+  // Supabase Storage に直接 PUT
+  const ext = pendingFile.name.split('.').pop().toLowerCase();
+  const path = `${selectedGym.id}.${ext}`;  // ジム ID を固定ファイル名にして上書き
+
+  try {
+    // 1. Storage アップロード (upsert true)
+    const uploadRes = await fetch(
+      `${supabaseUrl}/storage/v1/object/${BUCKET}/${path}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': pendingFile.type,
+          'x-upsert': 'true',
+        },
+        body: pendingFile,
+      }
+    );
+    if (!uploadRes.ok) {
+      const err = await uploadRes.text();
+      throw new Error(`Storage アップロード失敗: ${err}`);
+    }
+
+    // 2. Public URL を構築
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${path}?t=${Date.now()}`;
+    // (?t= はキャッシュバスター)
+
+    // 3. gyms.floor_plan_url を更新
+    const updateRes = await fetch(
+      `${supabaseUrl}/rest/v1/gyms?id=eq.${selectedGym.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ floor_plan_url: publicUrl }),
+      }
+    );
+    if (!updateRes.ok) {
+      const err = await updateRes.text();
+      throw new Error(`DB 更新失敗: ${err}`);
+    }
+
+    // ローカル状態を更新
+    selectedGym.floor_plan_url = publicUrl;
+    const idx = gyms.findIndex(g => g.id === selectedGym.id);
+    if (idx >= 0) gyms[idx].floor_plan_url = publicUrl;
+    renderGymGrid();
+
+    setStatus('uploadStatus', `✓ アップロード完了！ URL: ${publicUrl}`, 'success');
+    document.getElementById('uploadBtn').disabled = false;
+    document.getElementById('deleteBtn').classList.remove('hidden');
+  } catch (e) {
+    setStatus('uploadStatus', `エラー: ${e.message}`, 'error');
+    document.getElementById('uploadBtn').disabled = false;
+  }
+}
+
+async function deleteFloorPlan() {
+  if (!selectedGym || !selectedGym.floor_plan_url) return;
+  if (!confirm(`${selectedGym.name} の館内図を削除しますか？`)) return;
+
+  setStatus('uploadStatus', '削除中...', 'info');
+  try {
+    // ファイル削除 (URL からパス抽出)
+    const m = selectedGym.floor_plan_url.match(/\/object\/public\/[^/]+\/([^?]+)/);
+    if (m) {
+      const path = m[1];
+      await fetch(
+        `${supabaseUrl}/storage/v1/object/${BUCKET}/${path}`,
+        {
+          method: 'DELETE',
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+        }
+      );
+    }
+
+    // DB の URL を null に
+    const updateRes = await fetch(
+      `${supabaseUrl}/rest/v1/gyms?id=eq.${selectedGym.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ floor_plan_url: null }),
+      }
+    );
+    if (!updateRes.ok) throw new Error(await updateRes.text());
+
+    selectedGym.floor_plan_url = null;
+    const idx = gyms.findIndex(g => g.id === selectedGym.id);
+    if (idx >= 0) gyms[idx].floor_plan_url = null;
+    renderGymGrid();
+
+    setStatus('uploadStatus', '✓ 削除しました', 'success');
+    document.getElementById('preview').classList.add('hidden');
+    document.getElementById('deleteBtn').classList.add('hidden');
+  } catch (e) {
+    setStatus('uploadStatus', `エラー: ${e.message}`, 'error');
+  }
+}
+</script>
+</body>
+</html>

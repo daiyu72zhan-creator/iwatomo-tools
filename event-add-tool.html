@@ -623,7 +623,15 @@ function generateAll(){
       ? (document.getElementById('reltype_'+id).value || null)
       : null;
 
-    generatedEvents.push({gymName:d.gymName,type:d.type,titleJa:tja,desc:desc});
+    generatedEvents.push({
+      gymName:d.gymName,
+      type:d.type,
+      titleJa:tja,
+      desc:desc,
+      startAt:startVal,
+      endAt:endVal,
+      isClosedToPublic:closed,
+    });
 
     sqls.push(`-- ▼ 事件${id.replace('ev','')}：${d.gymName} / ${tja||d.type}
 INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,image_urls,start_at,end_at,location,entry_url,results_url,is_closed_to_public,show_on_calendar,is_published,related_type)
@@ -649,6 +657,43 @@ function copySQL(){
   });
 }
 
+// JST ISO 文字列 (例: "2026-05-30T10:00:00+09:00") を解析して日付/時刻パーツを返す
+function parseJSTIso(isoStr){
+  if(!isoStr)return null;
+  const m=isoStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if(!m)return null;
+  const Y=parseInt(m[1],10),M=parseInt(m[2],10),D=parseInt(m[3],10);
+  const H=parseInt(m[4],10),Mi=parseInt(m[5],10);
+  // 曜日は UTC 12:00 で生成すれば世界中どの時区でも同じ結果になる
+  const wdayIdx=new Date(Date.UTC(Y,M-1,D,12)).getUTCDay();
+  const wday=['日','月','火','水','木','金','土'][wdayIdx];
+  return{Y,M,D,H,Mi,wday,
+    dateStr:`${M}/${D}(${wday})`,
+    timeStr:`${String(H).padStart(2,'0')}:${String(Mi).padStart(2,'0')}`};
+}
+
+// LINE 通知用の日時範囲フォーマット
+//  単日全日:    "5/30(土)"
+//  単日時間有り: "5/30(土) 10:00–18:00"
+//  跨日全日:    "5/30(土)–6/1(月)"
+//  跨日時間有り: "5/30(土) 10:00–6/1(月) 18:00"
+function formatEventDateRange(startAt,endAt){
+  const s=parseJSTIso(startAt);
+  if(!s)return'';
+  const e=endAt?parseJSTIso(endAt):null;
+  const sameDay=e&&s.Y===e.Y&&s.M===e.M&&s.D===e.D;
+  const startIsAllDay=s.H===0&&s.Mi===0;
+  const endIsAllDay=!e||((e.H===23&&e.Mi===59)||(e.H===0&&e.Mi===0));
+  const allDay=startIsAllDay&&endIsAllDay;
+  if(!e||sameDay){
+    if(allDay)return s.dateStr;
+    if(e&&(e.H!==s.H||e.Mi!==s.Mi))return `${s.dateStr} ${s.timeStr}–${e.timeStr}`;
+    return `${s.dateStr} ${s.timeStr}`;
+  }
+  if(allDay)return `${s.dateStr}–${e.dateStr}`;
+  return `${s.dateStr} ${s.timeStr}–${e.dateStr} ${e.timeStr}`;
+}
+
 async function sendLineNotification(){
   if(!generatedEvents.length)return;
   const btn=document.getElementById('lineBtn');
@@ -658,10 +703,16 @@ async function sendLineNotification(){
   status.className='line-status';
 
   const lines=generatedEvents.map(ev=>{
-    const emoji=TYPE_EMOJI[ev.type]||'📌';
-    const gymShort=ev.gymName.split('|')[0].trim();
+    // is_closed_to_public な event/competition は closure 扱い (🔒 + 全館貸切ラベル)
+    const isFullClosure=ev.isClosedToPublic&&(ev.type==='event'||ev.type==='competition');
+    const emoji=isFullClosure?'🔒':(TYPE_EMOJI[ev.type]||'📌');
+    const gymShort=ev.gymName.split('/')[0].trim();
     const title=ev.titleJa||AUTO_TITLES[ev.type]?.ja||ev.type;
-    let text=`${emoji} ${gymShort}\n${title}`;
+    const dateStr=formatEventDateRange(ev.startAt,ev.endAt);
+    let text=`${emoji} ${gymShort}`;
+    if(dateStr)text+=`\n📅 ${dateStr}`;
+    text+=`\n${title}`;
+    if(isFullClosure)text+=`\n⛔ 全館貸切（一般利用不可）`;
     if(ev.desc)text+=`\n${ev.desc}`;
     return text;
   });
@@ -669,7 +720,7 @@ async function sendLineNotification(){
   const messageText=[
     '🧗 いわとも 更新情報',
     '',
-    ...lines,
+    lines.join('\n\n'),
     '',
     '詳細はアプリで確認',
     'https://www.iwatomo.com/calendar'
