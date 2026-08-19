@@ -38,9 +38,6 @@ textarea{resize:vertical;min-height:60px}
 .gym-id-small{font-size:10px;color:#b0a899;font-family:monospace;margin-top:1px}
 .gym-ok{background:#f0f9f0;border:1px solid #a8d5a8;border-radius:8px;padding:5px 10px;font-size:11px;color:#2d6b2d;margin-top:4px;display:none}
 .gym-ok.show{display:block}
-.gym-chip{display:inline-flex;align-items:center;gap:5px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;border-radius:14px;padding:3px 10px;font-size:12px;margin:2px 4px 2px 0}
-.gym-chip-x{cursor:pointer;font-size:11px;color:#6366f1;font-weight:bold}
-.gym-chip-x:hover{color:#dc2626}
 .type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
 .type-btn{padding:7px 4px;border:1px solid #ece8e2;border-radius:8px;font-size:10px;font-weight:600;cursor:pointer;background:#f7f5f2;color:#6b4f3a;text-align:center;line-height:1.4}
 .type-btn.active{background:#6b4f3a;color:#fff;border-color:#6b4f3a}
@@ -158,10 +155,9 @@ const AUTO_TITLES={
   closure:      {ja:'臨時休業',            en:'Temporary Closure',      zh:'临时休业'},
   notice:       {ja:'お知らせ',            en:'Notice',                 zh:'通知'},
   hours_change: {ja:'営業時間変更',         en:'Hours Change',           zh:'营业时间更改'},
-  area_closed:  {ja:'一部利用不可',         en:'Partially Unavailable',  zh:'部分不可用'},
 };
-const AUTO_TYPES=new Set(['route_partial','route_all','closure','notice','hours_change','area_closed']);
-const TYPE_EMOJI={route_partial:'🟡',route_all:'🔴',competition:'🏆',event:'🎉',closure:'🔒',notice:'📢',hours_change:'🕐',area_closed:'🟧'};
+const AUTO_TYPES=new Set(['route_partial','route_all','closure','notice','hours_change']);
+const TYPE_EMOJI={route_partial:'🟡',route_all:'🔴',competition:'🏆',event:'🎉',closure:'🔒',notice:'📢',hours_change:'🕐'};
 
 async function loadGyms(){
   const{data}=await sb.from('gyms').select('id,name').eq('is_active',true).order('name');
@@ -203,7 +199,7 @@ function onAlldayCheck(id) {
 function addEvent(){
   eventCount++;
   const id='ev'+eventCount;
-  eventData[id]={gymIds:[],gymNames:[],type:null,imageUrls:[]};
+  eventData[id]={gymId:null,gymName:null,type:null,imageUrls:[]};
 
   const div=document.createElement('div');
   div.className='event-block';
@@ -235,7 +231,6 @@ function addEvent(){
         <div class="type-btn" onclick="selectType('${id}','closure',this)">🔒 臨時休業</div>
         <div class="type-btn" onclick="selectType('${id}','notice',this)">📢 お知らせ</div>
         <div class="type-btn" onclick="selectType('${id}','hours_change',this)">🕐 営業時間変更</div>
-        <div class="type-btn" onclick="selectType('${id}','area_closed',this)">🟧 一部利用不可</div>
       </div>
       <!-- お知らせ選択時のみ表示：related_type -->
       <div class="related-type-field" id="relatedtype_${id}">
@@ -300,17 +295,6 @@ function addEvent(){
       <div class="time-field" id="endtimefield_${id}">
         <input type="time" id="endtime_${id}" value="21:00"/>
       </div>
-    </div>
-  </div>
-
-  <div class="row2" style="margin-top:12px">
-    <div class="field">
-      <label>報名開始日（コンペ用・任意）</label>
-      <input type="date" id="entrystart_${id}"/>
-    </div>
-    <div class="field">
-      <label>報名締切日（コンペ用・任意）</label>
-      <input type="date" id="entrydeadline_${id}"/>
     </div>
   </div>
 
@@ -385,15 +369,18 @@ function duplicateEvent(srcId){
 
   // 3. eventData に gym/type/imageUrls をコピー (gym は ID も含む)
   eventData[newId] = {
-    gymIds: [...(srcData.gymIds||[])],
-    gymNames: [...(srcData.gymNames||[])],
+    gymId: srcData.gymId,
+    gymName: srcData.gymName,
     type: srcData.type,
     imageUrls: [...srcData.imageUrls],  // 新配列でコピー
   };
 
-  // 4. ジム表示を更新（複数店舗対応）
-  if (eventData[newId].gymIds && eventData[newId].gymIds.length) {
-    renderGymChips(newId);
+  // 4. ジム表示を更新
+  if (srcData.gymName) {
+    document.getElementById('gym_'+newId).value = srcData.gymName;
+    const ok = document.getElementById('gymok_'+newId);
+    ok.textContent = '✓ gym_id: ' + srcData.gymId;
+    ok.classList.add('show');
   }
 
   // 5. 種別ボタンを active にする
@@ -484,9 +471,10 @@ function updateCount(){
 }
 
 function searchGym(id,q){
+  eventData[id].gymId=null;
+  document.getElementById('gymok_'+id).classList.remove('show');
   const dd=document.getElementById('dd_'+id);
   if(!q){dd.style.display='none';return;}
-  const sel=eventData[id].gymIds||[];
   const filtered=gyms.filter(g=>g.name.toLowerCase().includes(q.toLowerCase()));
   if(!filtered.length){dd.style.display='none';return;}
   dd.innerHTML=filtered.map(g=>`
@@ -497,31 +485,14 @@ function searchGym(id,q){
 }
 
 function pickGym(id,gymId,gymName){
-  if(!eventData[id].gymIds) eventData[id].gymIds=[];
-  if(!eventData[id].gymNames) eventData[id].gymNames=[];
-  if(!eventData[id].gymIds.includes(gymId)){
-    eventData[id].gymIds.push(gymId);
-    eventData[id].gymNames.push(gymName);
-  }
-  document.getElementById('gym_'+id).value='';
+  eventData[id].gymId=gymId;
+  eventData[id].gymName=gymName;
+  document.getElementById('gym_'+id).value=gymName;
   document.getElementById('dd_'+id).style.display='none';
-  renderGymChips(id);
-  updateSummary(id);
-}
-function removeGym(id,gymId){
-  const i=eventData[id].gymIds.indexOf(gymId);
-  if(i>=0){ eventData[id].gymIds.splice(i,1); eventData[id].gymNames.splice(i,1); }
-  renderGymChips(id);
-  updateSummary(id);
-}
-function renderGymChips(id){
   const ok=document.getElementById('gymok_'+id);
-  const ids=eventData[id].gymIds||[];
-  const names=eventData[id].gymNames||[];
-  if(!ids.length){ ok.classList.remove('show'); ok.innerHTML=''; return; }
-  ok.innerHTML=ids.map((gid,i)=>`<span class="gym-chip">${names[i]}<span class="gym-chip-x" onclick="removeGym('${id}','${gid}')">✕</span></span>`).join('')
-    +`<div class="gym-id-small" style="margin-top:4px;">${ids.length}店舗選択中</div>`;
+  ok.textContent='✓ gym_id: '+gymId;
   ok.classList.add('show');
+  updateSummary(id);
 }
 
 function selectType(id,type,btn){
@@ -537,17 +508,7 @@ function selectType(id,type,btn){
   ['ja','en','zh'].forEach(key=>{
     const input=document.getElementById('t'+key+'_'+id);
     const hint=document.getElementById('h'+key+'_'+id);
-    if(type==='area_closed'){
-      // 一部利用不可：三言語を自動補完（上書き）するが、編集も可能（「3F」等を追記できる）
-      input.value=AUTO_TITLES[type][key];
-      input.readOnly=false;
-      hint.style.display='none';
-    }else if(type==='notice'){
-      // お知らせ：空欄のみ補完（内容が都度異なるため上書きしない）、編集可能
-      if(!input.value) input.value=AUTO_TITLES[type][key];
-      input.readOnly=false;
-      hint.style.display='none';
-    }else if(AUTO_TYPES.has(type)){
+    if(AUTO_TYPES.has(type)){
       input.value=AUTO_TITLES[type][key];
       input.readOnly=true;
       hint.style.display='block';
@@ -675,12 +636,13 @@ function generateAll(){
   blocks.forEach(block=>{
     const id=block.id.replace('block_','');
     const d=eventData[id];
-    if(!d.gymIds||!d.gymIds.length){alert(`事件 #${id.replace('ev','')}：ジムを選択してください`);hasError=true;return;}
+    if(!d.gymId){alert(`事件 #${id.replace('ev','')}：ジムを選択してください`);hasError=true;return;}
     if(!d.type){alert(`事件 #${id.replace('ev','')}：種別を選択してください`);hasError=true;return;}
     const startVal=buildStartDateTime(id);
     if(!startVal){alert(`事件 #${id.replace('ev','')}：開始日を入力してください`);hasError=true;return;}
     const endVal=buildEndDateTime(id);
 
+    const uid=uuidv4();
     const tja=document.getElementById('tja_'+id).value;
     const ten=document.getElementById('ten_'+id).value;
     const tzh=document.getElementById('tzh_'+id).value;
@@ -690,10 +652,6 @@ function generateAll(){
     const results=document.getElementById('results_'+id).value;
     const ticket=document.getElementById('ticket_'+id).value;
     const special=document.getElementById('special_'+id).value;
-    const entryStartV=document.getElementById('entrystart_'+id).value;
-    const entryDeadV=document.getElementById('entrydeadline_'+id).value;
-    const entryStartISO=entryStartV ? entryStartV+'T00:00:00+09:00' : null;
-    const entryDeadISO=entryDeadV ? entryDeadV+'T23:59:00+09:00' : null;
     const pub=document.getElementById('pub_'+id).checked;
     const cal=document.getElementById('cal_'+id).checked;
     const closed=document.getElementById('closed_'+id).checked;
@@ -704,11 +662,8 @@ function generateAll(){
       ? (document.getElementById('reltype_'+id).value || null)
       : null;
 
-    d.gymIds.forEach((gid,gi)=>{
-    const uid=uuidv4();
-    const gName=d.gymNames[gi];
     generatedEvents.push({
-      gymName:gName,
+      gymName:d.gymName,
       type:d.type,
       titleJa:tja,
       desc:desc,
@@ -717,10 +672,9 @@ function generateAll(){
       isClosedToPublic:closed,
     });
 
-    sqls.push(`-- ▼ 事件${id.replace('ev','')}：${gName} / ${tja||d.type}
-INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,image_urls,start_at,end_at,location,entry_url,results_url,ticket_url,special_url,entry_start,entry_deadline,is_closed_to_public,show_on_calendar,is_published,related_type)
-VALUES ('${uid}','${gid}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},'${imageUrlsJson}'::jsonb,'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${escSQL(ticket)},${escSQL(special)},${entryStartISO?`'${entryStartISO}'`:'NULL'},${entryDeadISO?`'${entryDeadISO}'`:'NULL'},${closed},${cal},${pub},${escSQL(relatedType)});`);
-    });
+    sqls.push(`-- ▼ 事件${id.replace('ev','')}：${d.gymName} / ${tja||d.type}
+INSERT INTO events (id,gym_id,type,title_ja,title_en,title_zh,description,image_urls,start_at,end_at,location,entry_url,results_url,ticket_url,special_url,is_closed_to_public,show_on_calendar,is_published,related_type)
+VALUES ('${uid}','${d.gymId}','${d.type}',${escSQL(tja)},${escSQL(ten)},${escSQL(tzh)},${escSQL(desc)},'${imageUrlsJson}'::jsonb,'${startVal}',${endVal?`'${endVal}'`:'NULL'},${escSQL(loc)},${escSQL(entry)},${escSQL(results)},${escSQL(ticket)},${escSQL(special)},${closed},${cal},${pub},${escSQL(relatedType)});`);
   });
 
   if(hasError)return;
