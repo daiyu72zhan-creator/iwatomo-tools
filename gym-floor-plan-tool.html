@@ -130,7 +130,8 @@
 
     <h3 style="margin:0 0 4px;">ジム写真（内装・壁など）</h3>
     <p class="subtitle" style="margin:4px 0 10px;">
-      複数枚まとめて選べます。アップロード時に長辺 1600px / JPEG に自動圧縮されます（最大 10 枚）。
+      複数枚まとめて選べます。アップロード時に長辺 2560px / JPEG(高画質) に変換されます（最大 10 枚）。
+      元画像が 2560px より小さい場合はそのままの解像度で保存されます。
     </p>
 
     <div id="photoList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;"></div>
@@ -255,8 +256,11 @@ function renderPhotoList() {
   `).join('');
 }
 
-// 長辺 maxSide まで縮小して JPEG に。保存容量と表示速度のため
-function compressImage(file, maxSide = 1600, quality = 0.82) {
+// 長辺 maxSide まで縮小して JPEG に。
+// ジム写真は「37店 × 最大10枚」で総量が頭打ちなので、容量より画質を優先する
+// （1枚 0.8〜1.5MB 程度。全部埋まっても数百MB）。
+// maxSide より小さい画像は拡大しない（元がボケていたら縮小しても直らないため）。
+function compressImage(file, maxSide = 2560, quality = 0.9) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const reader = new FileReader();
